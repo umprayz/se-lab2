@@ -1,0 +1,41 @@
+name: Measure coverage
+
+on:
+  pull_request:
+    branches: [ 'main' ]
+
+env:
+  COVERAGE_THRESHOLD: 80
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Evaluate coverage
+        run: mvn -B test
+      - name: Add coverage to PR
+        id: jacoco
+        uses: madrapps/jacoco-report@v1.7.1
+        with:
+          paths: |
+            ${{ github.workspace }}/**/target/site/jacoco/jacoco.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          min-coverage-overall: $COVERAGE_THRESHOLD
+          min-coverage-changed-files: $COVERAGE_THRESHOLD
+          pass-emoji: ✅
+          fail-emoji: ❌
+      - name: Prevent merging until coverage is reached
+        if: ${{ steps.jacoco.outputs.coverage-overall < $COVERAGE_THRESHOLD }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.setFailed('Overall coverage is less than $COVERAGE_THRESHOLD%!')
